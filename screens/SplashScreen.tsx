@@ -1,13 +1,7 @@
-import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Dimensions,
-  Animated,
-} from 'react-native';
+import React, { useEffect } from "react";
+import { Animated, Dimensions, StyleSheet, Text, View } from "react-native";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
   const logoScale = new Animated.Value(0);
@@ -55,7 +49,8 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
           },
         ]}
       >
-        <Text style={styles.logoIcon}>💰</Text>
+        {/* Chart bar Unicode: 📊 or you can use another relevant icon */}
+        <Text style={styles.logoIcon}>💳</Text>
         <Animated.Text
           style={[
             styles.logoText,
@@ -64,7 +59,7 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
             },
           ]}
         >
-          ExpensO
+          FinLog
         </Animated.Text>
         <Animated.Text
           style={[
@@ -84,12 +79,12 @@ export default function SplashScreen({ onFinish }: { onFinish: () => void }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#4F46E5',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#4F46E5",
+    justifyContent: "center",
+    alignItems: "center",
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   logoIcon: {
     fontSize: 80,
@@ -97,15 +92,15 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 48,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontWeight: "bold",
+    color: "#FFFFFF",
     marginBottom: 8,
     letterSpacing: 2,
   },
   tagline: {
     fontSize: 18,
-    color: '#E0E7FF',
-    fontWeight: '500',
+    color: "#E0E7FF",
+    fontWeight: "500",
     letterSpacing: 1,
   },
 });
