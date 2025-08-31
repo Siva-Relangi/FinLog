@@ -5,7 +5,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { Ionicons } from "@expo/vector-icons"; // optional
+import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer } from "@react-navigation/native";
 import { View } from "react-native";
@@ -15,6 +15,7 @@ import { DataProvider } from "./context/DataContext";
 import AddExpenseScreen from "./screens/AddExpenseScreen";
 import HomeScreen from "./screens/HomeScreen";
 import SettingsScreen from "./screens/Settingsscreen";
+import { colors } from "./theme/theme";
 
 const Tab = createBottomTabNavigator();
 
@@ -33,10 +34,30 @@ export default function App() {
         <DataProvider>
           <Tab.Navigator
             screenOptions={{
-              headerTitleAlign: "center",
-              headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
-              tabBarActiveTintColor: "#0ea5e9",
-              tabBarLabelStyle: { fontFamily: "Inter_500Medium" },
+              headerShown: false,
+              tabBarActiveTintColor: colors.primary,
+              tabBarInactiveTintColor: colors.textMuted,
+              tabBarLabelStyle: { 
+                fontFamily: "Inter_600SemiBold",
+                fontSize: 12,
+                marginTop: 2,
+              },
+              tabBarStyle: {
+                backgroundColor: colors.card,
+                borderTopWidth: 1,
+                borderTopColor: colors.borderLight,
+                paddingTop: 12,
+                paddingBottom: 16,
+                height: 90,
+                elevation: 8,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: -2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+              },
+              tabBarIconStyle: {
+                marginBottom: 2,
+              },
             }}
           >
             <Tab.Screen

@@ -33,6 +33,7 @@ type DataContextType = {
   filters: Filters;
   addExpense: (e: Omit<Expense, "id">) => Promise<void>;
   addCategory: (name: string, icon?: string) => Promise<Category>;
+  deleteCategory: (id: string) => Promise<void>;
   setFilters: (f: Partial<Filters>) => void;
   clearAll: () => Promise<void>;
 };
@@ -54,7 +55,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setCategories(DEFAULT_CATEGORIES);
         await saveCategories(DEFAULT_CATEGORIES);
       } else {
-        // <CHANGE> migrate categories that lack iconName
+        // Migrate categories that lack iconName
         const migrated = c.map((cat) => ({
           ...cat,
           iconName: cat.iconName || "pricetag-outline",
@@ -103,6 +104,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [categories, persistCategories]
   );
 
+  const deleteCategory = useCallback(
+    async (id: string) => {
+      // Remove category and any associated expenses
+      const nextCategories = categories.filter((cat) => cat.id !== id);
+      const nextExpenses = expenses.filter((exp) => exp.categoryId !== id);
+      await Promise.all([
+        persistCategories(nextCategories),
+        persistExpenses(nextExpenses),
+      ]);
+    },
+    [categories, expenses, persistCategories, persistExpenses]
+  );
+
   const setFilters = (f: Partial<Filters>) => {
     setFiltersState((prev) => ({ ...prev, ...f }));
   };
@@ -122,10 +136,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       filters,
       addExpense,
       addCategory,
+      deleteCategory,
       setFilters,
       clearAll,
     }),
-    [expenses, categories, filters, addExpense, addCategory, clearAll]
+    [expenses, categories, filters, addExpense, addCategory, deleteCategory, clearAll]
   );
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

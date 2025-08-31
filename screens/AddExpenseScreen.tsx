@@ -1,11 +1,23 @@
-import React, { useState } from 'react'
-import { View, Text, TextInput, StyleSheet, Alert, Modal, FlatList, TouchableOpacity } from 'react-native'
-import { Picker } from '@react-native-picker/picker'
-import * as Haptics from 'expo-haptics'
-import { useData } from '../context/DataContext'
-import { colors, radii, spacing } from '../theme/theme'
-import { Ionicons } from '@expo/vector-icons'
-import { AnimatedPressable } from '../components/AnimatedPressable'
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { AnimatedPressable } from '../components/AnimatedPressable';
+import CategoryIcon from '../components/CategoryIcon';
+import { useData } from '../context/DataContext';
+import { colors, radii, shadow, spacing, typography } from '../theme/theme';
 
 // Quick icon suggestions to pick from when creating a category
 const ICON_SUGGESTIONS = [
@@ -19,185 +31,445 @@ const ICON_SUGGESTIONS = [
   'bus-outline',
   'shirt-outline',
   'flash-outline',
-] as const
+] as const;
 
 export default function AddExpenseScreen() {
-  const { categories, addExpense, addCategory } = useData()
-  const [amount, setAmount] = useState('')
-  const [categoryId, setCategoryId] = useState<string>('')
-  const [note, setNote] = useState('')
+  const { categories, addExpense, addCategory } = useData();
+  const [amount, setAmount] = useState('');
+  const [categoryId, setCategoryId] = useState<string>('');
+  const [note, setNote] = useState('');
+  const [catModalOpen, setCatModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState<string>('pricetag-outline');
 
-  const [catModalOpen, setCatModalOpen] = useState(false)
-  const [newCatName, setNewCatName] = useState('')
-  const [newCatIcon, setNewCatIcon] = useState<string>('pricetag-outline')
+  // Refs for keyboard handling
+  const scrollViewRef = useRef<ScrollView>(null);
+  const noteInputRef = useRef<TextInput>(null);
+  const noteContainerRef = useRef<View>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Helper function to get absolute position of note input
+  const getNoteInputAbsolutePosition = () => {
+    return new Promise<number>((resolve) => {
+      if (noteContainerRef.current) {
+        noteContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
+          resolve(pageY);
+        });
+      } else {
+        resolve(0);
+      }
+    });
+  };
+
+  // Helper function for smooth scrolling
+  const scrollToNoteInput = async () => {
+    if (scrollViewRef.current) {
+      const absoluteY = await getNoteInputAbsolutePosition();
+      if (absoluteY > 0) {
+        const targetY = Math.max(0, absoluteY - 150);
+        scrollViewRef.current.scrollTo({
+          y: targetY,
+          animated: true,
+        });
+      }
+    }
+  };
+
+  // Keyboard event listeners
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardVisible(true);
+      setKeyboardHeight(event.endCoordinates.height);
+      setTimeout(() => {
+        scrollToNoteInput();
+      }, 500);
+    });
+
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      setKeyboardHeight(0);
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ y: 0, animated: true });
+        }
+      }, 100);
+    });
+
+    return () => {
+      keyboardDidShowListener?.remove();
+      keyboardDidHideListener?.remove();
+    };
+  }, []);
 
   const onSave = async () => {
-    const amt = Number(amount)
+    const amt = Number(amount);
     if (!amt || amt <= 0) {
-      Alert.alert('Invalid amount', 'Please enter a valid amount greater than 0.')
-      return
+      Alert.alert('Invalid amount', 'Please enter a valid amount greater than 0.');
+      return;
     }
     if (!categoryId) {
-      Alert.alert('Select category', 'Please choose a category.')
-      return
+      Alert.alert('Select category', 'Please choose a category.');
+      return;
     }
     await addExpense({
       amount: amt,
       categoryId,
       note: note.trim() || undefined,
       date: new Date().toISOString(),
-    })
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    setAmount('')
-    setCategoryId('')
-    setNote('')
-    Alert.alert('Saved', 'Expense added.')
-  }
+    });
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setAmount('');
+    setCategoryId('');
+    setNote('');
+    Alert.alert('Saved', 'Expense added successfully! 🎉');
+  };
 
   const onConfirmAddCategory = async () => {
-    const name = newCatName.trim()
+    const name = newCatName.trim();
     if (!name) {
-      Alert.alert('Name required', 'Please enter a category name.')
-      return
+      Alert.alert('Name required', 'Please enter a category name.');
+      return;
     }
-    const created = await addCategory(name, newCatIcon || 'pricetag-outline')
-    await Haptics.selectionAsync()
-    setCategoryId(created.id)
-    setNewCatName('')
-    setNewCatIcon('pricetag-outline')
-    setCatModalOpen(false)
-  }
+    const created = await addCategory(name, newCatIcon || 'pricetag-outline');
+    await Haptics.selectionAsync();
+    setCategoryId(created.id);
+    setNewCatName('');
+    setNewCatIcon('pricetag-outline');
+    setCatModalOpen(false);
+  };
 
   return (
-    <View style={styles.container}>
-      {/* Title */}
-      <Text style={styles.title}>Add Expense</Text>
-      <Text style={styles.subtitle}>Log your spending and keep your budget on track.</Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      enabled={true}
+    >
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        ref={scrollViewRef}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="add-circle" size={32} color={colors.primary} />
+          </View>
+          <Text style={styles.title}>Add Expense</Text>
+          <Text style={styles.subtitle}>Log your spending and keep your budget on track</Text>
+        </View>
 
-      {/* Amount */}
-      <Text style={styles.label}>Amount</Text>
-      <TextInput
-        style={styles.input}
-        keyboardType="decimal-pad"
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="0.00"
-        placeholderTextColor={colors.muted}
-      />
-
-      {/* Category */}
-      <Text style={styles.label}>Category</Text>
-      <View style={styles.pickerWrap}>
-        <Picker selectedValue={categoryId} onValueChange={(v) => setCategoryId(v)}>
-          <Picker.Item label="Select category" value="" />
-          {categories.map((c) => (
-            <Picker.Item key={c.id} label={c.name} value={c.id} />
-          ))}
-        </Picker>
-      </View>
-
-      <TouchableOpacity style={styles.inlineBtn} onPress={() => setCatModalOpen(true)}>
-        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-        <Text style={styles.inlineBtnText}>Add New Category</Text>
-      </TouchableOpacity>
-
-      {/* Note */}
-      <Text style={styles.label}>Note (optional)</Text>
-      <TextInput
-        style={styles.input}
-        value={note}
-        onChangeText={setNote}
-        placeholder="e.g. Coffee with client"
-        placeholderTextColor={colors.muted}
-      />
-
-      {/* Save */}
-      <AnimatedPressable onPress={onSave} style={styles.saveBtn}>
-        <Text style={styles.saveText}>Save Expense</Text>
-      </AnimatedPressable>
-
-      {/* Add Category Modal */}
-      <Modal visible={catModalOpen} transparent animationType="fade" onRequestClose={() => setCatModalOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>New Category</Text>
-            <TextInput
-              style={styles.input}
-              value={newCatName}
-              onChangeText={setNewCatName}
-              placeholder="Category name"
-              placeholderTextColor={colors.muted}
-            />
-            <Text style={styles.smallLabel}>Icon</Text>
-            <View style={styles.iconPicker}>
-              <Ionicons name={(newCatIcon as any) || 'pricetag-outline'} size={20} color={colors.primary} />
+        {/* Form Container */}
+        <View style={styles.formContainer}>
+          {/* Amount */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Amount</Text>
+            <View style={styles.amountContainer}>
+              <Text style={styles.currencySymbol}>$</Text>
               <TextInput
-                style={[styles.input, { flex: 1 }]}
-                value={newCatIcon}
-                onChangeText={setNewCatIcon}
-                placeholder="Ionicons name (e.g., restaurant-outline)"
-                placeholderTextColor={colors.muted}
+                style={styles.amountInput}
+                keyboardType="decimal-pad"
+                value={amount}
+                onChangeText={setAmount}
+                placeholder="0.00"
+                placeholderTextColor={colors.textLight}
               />
             </View>
-            <FlatList
-              style={{ marginTop: spacing.sm }}
-              horizontal
-              data={ICON_SUGGESTIONS as readonly string[]}
-              keyExtractor={(i) => i}
-              contentContainerStyle={{ gap: spacing.sm }}
-              renderItem={({ item }) => (
+          </View>
+
+          {/* Category */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.categoryGrid}>
+              {categories.map((item) => (
                 <TouchableOpacity
-                  onPress={() => setNewCatIcon(item)}
+                  key={item.id}
+                  onPress={() => setCategoryId(item.id)}
                   style={[
-                    styles.iconSuggestion,
-                    newCatIcon === item && { borderColor: colors.primary, backgroundColor: '#e6f6fd' },
+                    styles.categoryItem,
+                    categoryId === item.id && styles.categoryItemActive,
                   ]}
                 >
-                  <Ionicons name={item as any} size={20} color={colors.primary} />
+                  <CategoryIcon
+                    name={item.iconName || 'pricetag-outline'}
+                    variant="small"
+                  />
+                  <Text
+                    style={[
+                      styles.categoryName,
+                      categoryId === item.id && styles.categoryNameActive,
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {item.name}
+                  </Text>
                 </TouchableOpacity>
-              )}
-            />
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              <AnimatedPressable onPress={onConfirmAddCategory} style={[styles.saveBtn, { flex: 1 }]}>
-                <Text style={styles.saveText}>Add</Text>
-              </AnimatedPressable>
-              <AnimatedPressable onPress={() => setCatModalOpen(false)} style={[styles.cancelBtn, { flex: 1 }]}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </AnimatedPressable>
+              ))}
             </View>
           </View>
+
+          {/* Note */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Note (optional)</Text>
+            <View style={styles.noteInputContainer} ref={noteContainerRef}>
+              <TextInput
+                style={styles.noteInput}
+                value={note}
+                onChangeText={setNote}
+                placeholder="e.g., Coffee with client, Groceries for dinner"
+                placeholderTextColor={colors.textLight}
+                multiline
+                numberOfLines={3}
+                ref={noteInputRef}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollToNoteInput();
+                  }, 100);
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Save Button */}
+          <AnimatedPressable onPress={onSave} style={styles.saveButton}>
+            <Ionicons name="checkmark" size={20} color={colors.bgSecondary} />
+            <Text style={styles.saveText}>Save Expense</Text>
+          </AnimatedPressable>
         </View>
-      </Modal>
-    </View>
-  )
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
 }
 
 const styles = StyleSheet.create({
-  // <CHANGE> Polished layout + fonts + colors + haptics (triggered in handlers)
-  container: { flex: 1, padding: spacing.lg, backgroundColor: colors.bg },
-  title: { fontFamily: 'Inter_700Bold', fontSize: 22, color: colors.text },
-  subtitle: { fontFamily: 'Inter_500Medium', fontSize: 13, color: colors.muted, marginTop: 4, marginBottom: spacing.md },
-  label: { color: colors.text, fontFamily: 'Inter_600SemiBold', marginTop: spacing.md, marginBottom: spacing.xs },
-  smallLabel: { color: colors.muted, fontFamily: 'Inter_600SemiBold', marginTop: spacing.sm, marginBottom: spacing.xs },
-  input: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: spacing.md,
-    color: colors.text, fontFamily: 'Inter_500Medium',
+  keyboardContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
   },
-  pickerWrap: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, overflow: 'hidden' },
-  inlineBtn: { marginTop: spacing.xs, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  inlineBtnText: { color: colors.primary, fontFamily: 'Inter_600SemiBold' },
-  saveBtn: { backgroundColor: colors.primary, padding: spacing.lg, borderRadius: radii.lg, marginTop: spacing.lg, alignItems: 'center' },
-  saveText: { color: '#fff', fontFamily: 'Inter_700Bold' },
-  cancelBtn: { backgroundColor: colors.border, padding: spacing.lg, borderRadius: radii.lg, alignItems: 'center' },
-  cancelText: { color: colors.text, fontFamily: 'Inter_700Bold' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: spacing.lg },
-  modalCard: { backgroundColor: '#fff', borderRadius: radii.lg, padding: spacing.lg, gap: spacing.sm },
-  modalTitle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: colors.text, marginBottom: spacing.sm },
-  iconPicker: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xl,
+  },
+  header: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.card,
+    marginBottom: spacing.lg,
+    ...shadow.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  title: {
+    ...typography.h2,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    ...typography.bodySmall,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  formContainer: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.lg,
+  },
+  inputGroup: {
+    gap: spacing.sm,
+  },
+  label: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  amountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    ...shadow.sm,
+  },
+  currencySymbol: {
+    ...typography.h3,
+    color: colors.textMuted,
+    marginRight: spacing.sm,
+  },
+  amountInput: {
+    flex: 1,
+    height: 56,
+    ...typography.h2,
+    color: colors.text,
+    fontFamily: 'Inter_700Bold',
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    ...shadow.sm,
+  },
+  categoryItem: {
+    width: '30%', // Adjust for 3 columns with spacing
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.sm,
+    margin: spacing.xs,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  categoryItemActive: {
+    backgroundColor: colors.textLight+'80', // Solid light gray for selected category
+    borderColor: colors.primary,
+  },
+  categoryName: {
+    ...typography.caption,
+    color: colors.text,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  categoryNameActive: {
+    color: colors.bgSecondary,
+  },
+  noteInputContainer: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    ...shadow.sm,
+  },
+  noteInput: {
+    color: colors.text,
+    ...typography.bodyMedium,
+    textAlignVertical: 'top',
+  },
+  saveButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    borderRadius: radii.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    ...shadow.md,
+  },
+  saveText: {
+    ...typography.button,
+    color: colors.bgSecondary,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: spacing.md,
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+    ...shadow.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    ...typography.h4,
+    color: colors.text,
+  },
+  modalSubtitle: {
+    ...typography.bodySmall,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
+  },
+  closeButton: {
+    padding: spacing.xs,
+  },
+  modalInput: {
+    backgroundColor: colors.bg,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    color: colors.text,
+    ...typography.bodyMedium,
+  },
+  modalLabel: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  iconGrid: {
+    maxHeight: 120,
   },
   iconSuggestion: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.border, backgroundColor: '#fff',
+    width: 48,
+    height: 48,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    margin: spacing.xs,
   },
-})
+  iconSuggestionActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: colors.border,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    alignItems: 'center',
+  },
+  cancelText: {
+    ...typography.button,
+    color: colors.text,
+  },
+  confirmButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: radii.md,
+    alignItems: 'center',
+  },
+  confirmText: {
+    ...typography.button,
+    color: colors.bgSecondary,
+  },
+});

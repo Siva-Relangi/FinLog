@@ -1,13 +1,13 @@
-import React, { useMemo } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useMemo, useState } from "react";
+import { Dimensions, FlatList, StyleSheet, Text, View } from "react-native";
 import AppHeader from "../components/AppHeader";
+import ChartCard from "../components/ChartCard";
 import ExpenseItem from "../components/ExpenseItem";
 import FiltersBar from "../components/FilterBar";
 import TotalsCard from "../components/ToolCard";
 import { useData } from "../context/DataContext";
-import { colors, spacing } from "../theme/theme";
-
-import { Dimensions } from "react-native";
+import { colors, radii, shadow, spacing, typography } from "../theme/theme";
 import {
   formatHeaderDate,
   groupByDate,
@@ -16,10 +16,14 @@ import {
   isTodayISO,
 } from "../utils/date";
 import { applyCategory, applySearch, sortExpenses } from "../utils/list";
+
 const screenWidth = Dimensions.get("window").width;
 
 export default function HomeScreen() {
+  // ...existing code...
+
   const { expenses, categories, filters, setFilters } = useData();
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   // Filter + sort + search
   const visibleExpenses = useMemo(() => {
@@ -68,130 +72,288 @@ export default function HomeScreen() {
     return { items, monthTotal };
   }, [expenses, categories]);
 
-  return (
-    <View style={styles.container}>
-      <AppHeader />
+  // Chart data for category expenses (bar chart)
+  const categoryBarChartData = useMemo(() => {
+    const chartColors = [
+      "#6366f1",
+      "#ec4899",
+      "#f59e0b",
+      "#10b981",
+      "#3b82f6",
+      "#ef4444",
+      "#06b6d4",
+      "#84cc16",
+      "#f97316",
+    ];
+    return breakdown.items.map((item, index) => ({
+      name: item.name,
+      amount: item.amount,
+      color: chartColors[index % chartColors.length],
+    }));
+  }, [breakdown.items]);
 
-      {/* Totals */}
-      <View style={styles.totalsRow}>
-        <TotalsCard label="Today" amount={totals.today} icon="sunny-outline" />
-        <TotalsCard
-          label="This Week"
-          amount={totals.week}
-          icon="calendar-outline"
-        />
-        <TotalsCard
-          label="This Month"
-          amount={totals.month}
-          icon="pie-chart-outline"
-        />
-      </View>
+  // Chart data for monthly spending by category
+  const pieChartData = useMemo(() => {
+    const chartColors = [
+      "#6366f1",
+      "#8b5cf6",
+      "#ec4899",
+      "#f59e0b",
+      "#10b981",
+      "#3b82f6",
+      "#ef4444",
+      "#06b6d4",
+      "#84cc16",
+      "#f97316",
+    ];
+    return breakdown.items.map((item, index) => ({
+      name: item.name,
+      amount: item.amount,
+      color: chartColors[index % chartColors.length],
+    }));
+  }, [breakdown.items]);
 
-      {/* Filters */}
-      <View style={{ marginTop: spacing.md }}>
-        <FiltersBar
-          categories={categories}
-          categoryId={filters.categoryId}
-          onCategoryChange={(id) => setFilters({ categoryId: id })}
-          sortBy={filters.sortBy}
-          onSortChange={(s) => setFilters({ sortBy: s })}
-          search={filters.search}
-          onSearchChange={(q) => setFilters({ search: q })}
-        />
-      </View>
-
-      {/* Breakdown */}
-      <View style={styles.breakdown}>
-        <Text style={styles.sectionTitle}>This Month by Category</Text>
-        {breakdown.items.length === 0 ? (
-          <Text style={styles.emptyText}>
-            No data yet. Add your first expense to get insights.
-          </Text>
-        ) : (
-          breakdown.items.map((it) => (
-            <View key={it.categoryId} style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>{it.name}</Text>
-              <View style={styles.breakdownBarBg}>
-                <View
-                  style={[
-                    styles.breakdownBarFill,
-                    { width: `${Math.min(100, it.pct)}%` },
-                  ]}
-                />
-              </View>
-              <Text style={styles.breakdownAmt}>
-                ${it.amount.toFixed(0)} ({it.pct.toFixed(0)}%)
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-
-      {/* Grouped List */}
-      <FlatList
-        style={{ marginTop: spacing.md }}
-        data={groups}
-        keyExtractor={([dateKey]) => dateKey}
-        renderItem={({ item: [dateKey, list] }) => (
-          <View style={styles.group}>
-            <Text style={styles.groupHeader}>
-              {formatHeaderDate(list[0].date)}
-            </Text>
-            {list.map((e) => (
-              <ExpenseItem
-                key={e.id}
-                expense={e}
-                category={categories.find((c) => c.id === e.categoryId)}
-              />
-            ))}
+  const renderHeader = () => (
+    <View>
+      <AppHeader onInsightsPress={() => setShowBreakdown((v) => !v)} />
+      {showBreakdown ? (
+        <View style={styles.chartsSection}>
+          {categoryBarChartData.length > 0 && (
+            <ChartCard
+              title="Category Expenses (Bar Chart)"
+              subtitle="Monthly expenses by category"
+              type="bar"
+              data={categoryBarChartData}
+              height={220}
+            />
+          )}
+        </View>
+      ) : (
+        <>
+          {/* Totals Cards */}
+          <View style={styles.totalsRow}>
+            <TotalsCard
+              label="Today"
+              amount={totals.today}
+              icon="sunny-outline"
+            />
+            <TotalsCard
+              label="This Week"
+              amount={totals.week}
+              icon="calendar-outline"
+            />
+            <TotalsCard
+              label="This Month"
+              amount={totals.month}
+              icon="pie-chart-outline"
+            />
           </View>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No expenses yet.</Text>
-        }
-      />
+          {/* Charts Section (only pie chart by default) */}
+          <View style={styles.chartsSection}>
+            {pieChartData.length > 0 && (
+              <ChartCard
+                title="Monthly Spending by Category"
+                subtitle="This month's expenses breakdown"
+                type="pie"
+                data={pieChartData}
+                height={220}
+              />
+            )}
+          </View>
+          {/* Filters */}
+          <View style={styles.filtersSection}>
+            <FiltersBar
+              categories={categories}
+              categoryId={filters.categoryId}
+              onCategoryChange={(id) => setFilters({ categoryId: id })}
+              sortBy={filters.sortBy}
+              onSortChange={(s) => setFilters({ sortBy: s })}
+              search={filters.search}
+              onSearchChange={(q) => setFilters({ search: q })}
+            />
+          </View>
+          {/* Recent Expenses Header */}
+          <View style={styles.listSection}>
+            <Text style={styles.sectionTitle}>Recent Expenses</Text>
+          </View>
+        </>
+      )}
     </View>
+  );
+
+  return (
+    <FlatList
+      style={styles.container}
+      data={groups}
+      keyExtractor={(item) => item[0]}
+      renderItem={({ item: [dateKey, list] }) => (
+        <View style={styles.group}>
+          {list.map((e) => (
+            <ExpenseItem
+              key={e.id}
+              expense={e}
+              category={categories.find((c) => c.id === e.categoryId)}
+            />
+          ))}
+        </View>
+      )}
+      ListHeaderComponent={renderHeader()}
+      ListEmptyComponent={
+        <View style={styles.emptyState}>
+          <Ionicons name="receipt-outline" size={48} color={colors.textLight} />
+          <Text style={styles.emptyTitle}>No expenses yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Start tracking your expenses to see them here
+          </Text>
+        </View>
+      }
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: colors.bg },
-  totalsRow: { flexDirection: "row", gap: 8 },
-  breakdown: { marginTop: 16 },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    color: colors.text,
-    marginBottom: 8,
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
   },
-  breakdownRow: { marginBottom: 10 },
-  breakdownLabel: {
+  content: {
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  totalsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  chartsToggle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.h4,
     color: colors.text,
-    marginBottom: 6,
+    fontWeight: "700",
+  },
+  toggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  toggleText: {
+    ...typography.caption,
+    color: colors.textMuted,
     fontFamily: "Inter_600SemiBold",
   },
-  breakdownBarBg: { height: 8, backgroundColor: "#e2e8f0", borderRadius: 999 },
+  chartsSection: {
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  filtersSection: {
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  breakdownSection: {
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  breakdownContainer: {
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    ...shadow.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  breakdownRow: {
+    marginBottom: spacing.md,
+  },
+  breakdownHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  breakdownLabel: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontFamily: "Inter_600SemiBold",
+  },
+  breakdownAmount: {
+    ...typography.bodyMedium,
+    color: colors.primary,
+    fontFamily: "Inter_700Bold",
+  },
+  breakdownBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  breakdownBarBg: {
+    flex: 1,
+    height: 8,
+    backgroundColor: colors.border,
+    borderRadius: radii.full,
+    overflow: "hidden",
+  },
   breakdownBarFill: {
     height: 8,
     backgroundColor: colors.primary,
-    borderRadius: 999,
+    borderRadius: radii.full,
   },
-  breakdownAmt: {
-    marginTop: 4,
-    color: colors.muted,
-    fontSize: 12,
+  breakdownPercentage: {
+    ...typography.caption,
+    color: colors.textMuted,
     fontFamily: "Inter_500Medium",
+    minWidth: 40,
+    textAlign: "right",
   },
-  group: { marginTop: 12 },
+  listSection: {
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  group: {
+    marginBottom: spacing.md,
+  },
   groupHeader: {
-    fontSize: 13,
-    color: colors.muted,
-    marginBottom: 6,
+    ...typography.caption,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
     fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  emptyText: {
-    color: colors.muted,
-    marginTop: 8,
-    fontFamily: "Inter_500Medium",
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: spacing.xl,
+    backgroundColor: colors.card,
+    borderRadius: radii.lg,
+    ...shadow.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    marginHorizontal: spacing.md,
+  },
+  emptyTitle: {
+    ...typography.h4,
+    color: colors.text,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  emptySubtitle: {
+    ...typography.bodySmall,
+    color: colors.textMuted,
+    textAlign: "center",
+    paddingHorizontal: spacing.md,
   },
 });
